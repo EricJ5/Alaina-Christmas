@@ -1,0 +1,32 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/clang",
+      "-Iinclude",
+      "-Wall",
+      "-Wextra",
+      "-c",
+      "-o",
+      "mpv.o",
+      "/home/eric/Code/Alaina-Christmas/src/mpv.c"
+    ],
+    "directory": "/home/eric/Code/Alaina-Christmas",
+    "file": "/home/eric/Code/Alaina-Christmas/src/mpv.c",
+    "output": "/home/eric/Code/Alaina-Christmas/mpv.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/clang",
+      "-Iinclude",
+      "-Wall",
+      "-Wextra",
+      "-c",
+      "-o",
+      "utils.o",
+      "/home/eric/Code/Alaina-Christmas/src/utils.c"
+    ],
+    "directory": "/home/eric/Code/Alaina-Christmas",
+    "file": "/home/eric/Code/Alaina-Christmas/src/utils.c",
+    "output": "/home/eric/Code/Alaina-Christmas/utils.o"
+  }
+]
