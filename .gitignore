@@ -3,3 +3,5 @@ test/
 *.o
 songs/
 *.mp3
+.cache/
+compile_commands.json
