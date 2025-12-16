@@ -1,3 +1,5 @@
 gift
 test/
 *.o
+songs/
+*.mp3

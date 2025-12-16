@@ -1,99 +1,76 @@
 #include "utils.h"
-#include <stdio.h>
 #include <syscall.h>
 #include <unistd.h>
 #include <stdbool.h>
+#include <stdio.h>
+#include <pthread.h>
 
-
-#ifndef RESET
-#define RESET
-volatile bool reset = false;
-void StartReset() {
-	reset = true;
+volatile bool press = false;
+volatile int Pevent = 0;
+void PressEvent(int event) {
+	press = true;
+	Pevent = event;
 }
-#endif //RESET
-int main() {
+void *ButtonLoop(void *arg) {
 	for (;;) {
-		reset = false;
-		mpv_handle *mpv = mpv_create();
-		mpv_handle *rmpv = mpv_create();
-		mpv_set_option_string(rmpv, "vid", "no");
-		mpv_set_option_string(rmpv, "volume", "30");
-	
-		mpv_set_option_string(mpv, "vid", "no");
-		mpv_set_option_string(mpv, "volume", "30");
-		mpv_initialize(mpv);
-		mpv_initialize(rmpv);
-
-
-		char *fileurl = "songs/song.wav";
-		char *rfileurl = "songs/rsong.wav";
-		const char *rcommand[] ={"loadfile", rfileurl, NULL};
-		const char *command[] ={"loadfile", fileurl, NULL}; 
-
-
-		mpv_command(mpv, command);
-
-
-		mpv_command(rmpv, rcommand);
-		stop(rmpv);
-	
-	
-		float sfloat = .35f;
-		float increment = .001f;
-		bool backwards = false;
-		float max = 3.000f;
-		char speed[10];
-		for (;;) {
-			if (reset) {
-				break;
-			}
-    			if (sfloat >= max) {
-			increment = -.001f;
-			} else if (sfloat <= -3.000f) {
-			increment = .001f;
-			}
-			//printf("%f\n", sfloat);
-			usleep(10*1000);
-			sfloat += increment;
-			if (sfloat < -.35f) {
-				if (backwards == false) {
-					printf("%s", "heyb\n");
-					set_speed(mpv, 1.00f, speed);
-					double seek_time = get_playback_left(mpv);
-					printf("%f mpv\n", seek_time);
-					seek_to_time(rmpv, seek_time);
-					double test = get_playback_left(rmpv);
-					printf("%f rmpv \n", test);
-					stop(mpv);
-					unstop(rmpv);
-					backwards = true;
-				}
-				printf("%f\n", sfloat);
-				set_speed(rmpv, sfloat, speed);
-
-			} else if (sfloat > .35f) {
-				if (backwards == true) {
-					printf("%s", "heyf\n");
-					set_speed(rmpv, 1.00f, speed);
-					double seek_time = get_playback_left(rmpv);
-					printf("%f rmpv \n",seek_time);
-					seek_to_time(mpv, seek_time);
-					double test = get_playback_left(mpv);
-					printf("%f mpv \n", test);
-					stop(rmpv);
-					unstop(mpv);
-					backwards = false;
-				}
-				printf("%f\n", sfloat);
-				set_speed(mpv, sfloat, speed);
-	
-			} else {
-			stop(rmpv);
-			stop(mpv);
-			}
+		printf("hey from button loop\n");
+		int key = getchar();
+		if (key == 's') {
+			PressEvent(1);
+		}
+		else if (key == 'p') {
+			PressEvent(-1);
 		}
 	}
+}
+int main(int argc,char *argv[]) {
+	printf("%s", argv[1]);
+	printf("hey-1\n");
+	mpv_handle *mpv = mpv_create();
+	
+	mpv_set_option_string(mpv, "vid", "no");
+    	mpv_set_option_string(mpv, "volume", "30");
+	mpv_set_property_string(mpv, "ytdl", "yes");
+	mpv_initialize(mpv);
+   
+	pthread_t id;	
+	pthread_create(&id, NULL, ButtonLoop, NULL);
+	char *playlisturl = argv[1];
+	const char *playlistcommand[] ={"loadfile", playlisturl , "replace", NULL};
+	const char *nextcommand[] ={"playlist-next", NULL};
+	printf("hey0\n");
+	const char *prevcommand[] ={"playlist-prev", NULL};
+	printf("hey1\n");
+	mpv_command(mpv, playlistcommand);
+	
+		
+	
+	printf("hey2\n");
+	float sfloat = .35f;
+	float increment = .001f;
+	float max = 3.000f;
+	char speed[10];
+	for (;;) {
+		if (press) {
+			if (Pevent == 1) {
+				mpv_command(mpv, nextcommand);
+			}
+			else if (Pevent == -1) {
+				mpv_command(mpv, prevcommand);
+
+			}
+			press = false;
+		}
+		if (sfloat >= max) {
+		increment = -.001f;
+		} else if (sfloat <= .20f) {
+		increment = .001f;
+		}
+		sfloat += increment;
+		usleep(10*1000);
+		set_speed(mpv, sfloat, speed);
+	//	printf("%f\n", sfloat);
+	}	
 	return 0;
 }	
 
