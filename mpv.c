@@ -6,8 +6,12 @@
 #include <linux/spi/spidev.h>
 #include <sys/ioctl.h>
 #include <fcntl.h>
-#include <string.h>
 #include <stdlib.h>
+#include <mpv/client.h>
+
+
+
+
 
 void set_speed(mpv_handle *handle, double speedfloat, char *speed) {
         float speedf = speedfloat;
