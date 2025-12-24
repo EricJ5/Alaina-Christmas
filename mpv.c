@@ -1,3 +1,4 @@
+#include <stdatomic.h>
 #include <syscall.h>
 #include <unistd.h>
 #include <stdbool.h>
@@ -8,8 +9,12 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <mpv/client.h>
+#include <sys/types.h>
 
 
+atomic_flag downloading = ATOMIC_FLAG_INIT;
+volatile bool updated = false;
+char *playlist = "./Songs/playlist.m3u";
 
 
 
@@ -21,32 +26,38 @@ void set_speed(mpv_handle *handle, double speedfloat, char *speed) {
         sprintf(speed, "%f", speedf);
         mpv_set_option_string(handle, "speed", speed);
 }
+
+
 double get_playback_left(mpv_handle *handle) {
         double time_remaining;
         mpv_get_property(handle, "time-remaining", MPV_FORMAT_DOUBLE, &time_remaining);
         // printf("%f\n", time_remaining);
         return time_remaining;
 }
+
+
 void seek_to_time(mpv_handle *handle, double seektime) {
         char time[20];
         sprintf(time, "%f", seektime);
         mpv_set_property_string(handle, "time-pos", time);
 }
+
+
 void stop(mpv_handle *handle) {
         mpv_set_property_string(handle, "pause", "yes");
 }
+
+
 void unstop(mpv_handle *handle) {
         mpv_set_property_string(handle, "pause", "no");
 }
 
-volatile bool press = false;
-volatile int Pevent = 0;
+
 #define SPI_DEVICE "/dev/spidev0.0"
 #define VREF_VOLTAGE 3.3  // The voltage connected to Vdd pin
 #define ADC_RESOLUTION 4095.0 // 12-bit ADC has 2^12 = 4096 steps (0 to 4095)
-
+char *yturl;
 int spi_fd;
-double speedarray[3995];
 void spi_init() {
     uint8_t mode = 0; // SPI Mode 0 or 3
     uint8_t bits = 8;
@@ -92,31 +103,68 @@ int read_mcp3202_channel(uint8_t channel) {
     
     return adc_value;
 }
-void PressEvent(int event) {
-	press = true;
-	Pevent = event;
+
+
+
+void *UpdatePlaylist(void *handle) {
+	while (atomic_flag_test_and_set(&downloading)) {
+	}
+	mpv_handle *mpv = (mpv_handle *)handle;
+	char *Songs = "./Songs";
+	char *archive = "./Songs/archive.txt";
+	char ytdlpcommand[242];
+	printf("%s \n", yturl);
+	snprintf(ytdlpcommand, 242, "yt-dlp -o \"./Songs/%%(title)s.mp3\" -x --print-to-file \"%%(title)s.mp3\" %s --audio-format mp3 --download-archive %s %s", playlist, archive, yturl);
+	system(ytdlpcommand);
+    	atomic_flag_clear(&downloading);
+	updated = true;
+	return NULL;
 }
 
-void *ButtonLoop(void *arg) {
+void *ButtonLoop(void *handle) {
+	mpv_handle *mpv = (mpv_handle*)handle;
+	const char *nextcommand[] ={"playlist-next", NULL};
+	const char *prevcommand[] ={"playlist-prev", NULL};
+	const char *playlistcommand[] ={"loadfile", playlist, "replace", NULL};
+	pthread_t pid;
 	for (;;) {
-		printf("hey from button loop\n");
-		int key = getchar();
-		if (key == 's') {
-			PressEvent(1);
+		if (!updated) {
+			int key = getchar();
+			switch (key) {
+				case 's':
+					mpv_command(mpv, nextcommand);
+      					break;
+				case 'p':
+					mpv_command(mpv, prevcommand);
+      					break;
+				case 'r':
+					pthread_create(&pid, NULL, UpdatePlaylist, (void *)mpv);
+					break;
+				
+			}
 		}
-		else if (key == 'p') {
-			PressEvent(-1);
+		else {
+			printf("hey from update");
+			mpv_command(mpv, playlistcommand);
+			updated = false;
 		}
 	}
 }
+
+
+
 int main(int argc,char *argv[]) {
+
+	yturl = argv[1];
+	static double speedarray[3995];
+
 	double increment = (double) 3/3996;
+
 	printf("%f\n", increment);
 	double count = .35;
 	for (int i = 0;i < 3096; i++) {
 		speedarray[i] = count;
 		count += increment;
-	//	printf("%f\n", count);	
 	}
 	printf("%s", argv[1]);
 	printf("hey-1\n");
@@ -125,46 +173,34 @@ int main(int argc,char *argv[]) {
 	mpv_set_option_string(mpv, "vid", "no");
     	mpv_set_option_string(mpv, "volume", "100");
 	mpv_set_option_string(mpv, "ao", "alsa");
-	mpv_set_property_string(mpv, "ytdl", "yes");
+	mpv_set_option_string(mpv, "loop-playlist", "inf");
 	mpv_initialize(mpv);
-   
+   	printf("hey \n", NULL);
 	pthread_t id;	
-	pthread_create(&id, NULL, ButtonLoop, NULL);
-	char *playlisturl = argv[1];
-	const char *playlistcommand[] ={"loadfile", "test.mp3", NULL};
-	const char *nextcommand[] ={"playlist-next", NULL};
-	printf("hey0\n");
-	const char *prevcommand[] ={"playlist-prev", NULL};
-	printf("hey1\n");
+	pthread_create(&id, NULL, ButtonLoop, (void*)mpv);
+	printf("hey before initial playlist \n");
+	UpdatePlaylist((void *)mpv);
+	const char *playlistcommand[] ={"loadfile", playlist, "replace", NULL};
 	mpv_command(mpv, playlistcommand);
-
+	printf("hey after initial playlist \n");
 		
 	
 	printf("hey2\n");
 	char speed[15];
 	spi_init();
+
 	for (;;) {
 		int adc_value = read_mcp3202_channel(0);
 		if (adc_value > 30) {
 			unstop(mpv);
 			printf("%d\n", adc_value);
-			printf("%f\n", speedarray[adc_value-100], speed);
+			printf("%f\n", speedarray[adc_value-100]);
 			set_speed(mpv, speedarray[adc_value-100], speed);
 		} else  {
 			usleep(.5 * 1000000);
 			if (adc_value < 30) {
 				stop(mpv);
 			}
-		}
-		if (press) {
-			if (Pevent == 1) {
-				mpv_command(mpv, nextcommand);
-			}
-			else if (Pevent == -1) {
-				mpv_command(mpv, prevcommand);
-
-			}
-			press = false;
 		}
 		usleep(100*0000);
 
