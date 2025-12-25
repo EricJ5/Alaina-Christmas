@@ -10,14 +10,37 @@
 #include <stdlib.h>
 #include <mpv/client.h>
 #include <sys/types.h>
-
+#include <wiringPi.h>
 
 atomic_flag downloading = ATOMIC_FLAG_INIT;
 volatile bool updated = false;
 char *playlist = "./Songs/playlist.m3u";
+int mode = 1;
+#define VOLUME_UP 3
+#define VOLUME_DOWN 2
+#define SKIP 0
+#define PREV 8
+#define MODE 9
+#define RESET 7
 
 
+void gpioinit() {
+	wiringPiSetup();
+	
+	pinMode(VOLUME_UP, INPUT);
+	pinMode(VOLUME_DOWN, INPUT);
+	pinMode(SKIP, INPUT);
+	pinMode(PREV, INPUT);
+	pinMode(MODE, INPUT);
+	pinMode(RESET, INPUT);
 
+    	pullUpDnControl(VOLUME_UP, PUD_UP);
+	pullUpDnControl(VOLUME_DOWN, PUD_UP);
+	pullUpDnControl(SKIP, PUD_UP);
+	pullUpDnControl(PREV, PUD_UP);
+	pullUpDnControl(MODE, PUD_UP);
+	pullUpDnControl(RESET, PUD_UP);
+}
 void set_speed(mpv_handle *handle, double speedfloat, char *speed) {
         float speedf = speedfloat;
         if (speedf < 0) {
@@ -106,19 +129,22 @@ int read_mcp3202_channel(uint8_t channel) {
 
 
 
-void *UpdatePlaylist(void *handle) {
+void *UpdatePlaylist(void *arg) {
 	while (atomic_flag_test_and_set(&downloading)) {
 	}
-	mpv_handle *mpv = (mpv_handle *)handle;
+	system("rm ./Songs/playlist.m3u");
 	char *Songs = "./Songs";
 	char *archive = "./Songs/archive.txt";
-	char ytdlpcommand[242];
+	char ytdlpcommand[100];
+	char ytdlplistcommand[100];
 	printf("%s \n", yturl);
-	snprintf(ytdlpcommand, 242, "yt-dlp -o \"./Songs/%%(title)s.mp3\" -x --print-to-file \"%%(title)s.mp3\" %s --audio-format mp3 --download-archive %s %s", playlist, archive, yturl);
+	snprintf(ytdlpcommand, 150, "yt-dlp -x --audio-format mp3 --download-archive %s %s", archive, yturl);
+	snprintf(ytdlplistcommand, 150, "yt-dlp --flat-playlist --print \"%(title)s.mp3\" %s > %s", yturl, playlist);
 	system(ytdlpcommand);
+	system(ytdlplistcommand);
     	atomic_flag_clear(&downloading);
 	updated = true;
-	return NULL;
+	return NULL;	
 }
 
 void *ButtonLoop(void *handle) {
@@ -126,22 +152,44 @@ void *ButtonLoop(void *handle) {
 	const char *nextcommand[] ={"playlist-next", NULL};
 	const char *prevcommand[] ={"playlist-prev", NULL};
 	const char *playlistcommand[] ={"loadfile", playlist, "replace", NULL};
+	const char *volupcommand[] ={"add", "volume", "5", NULL};
+	const char *voldowncommand[] ={"add", "volume", "-5", NULL};
 	pthread_t pid;
+	gpioinit();
 	for (;;) {
 		if (!updated) {
-			int key = getchar();
-			switch (key) {
-				case 's':
-					mpv_command(mpv, nextcommand);
-      					break;
-				case 'p':
-					mpv_command(mpv, prevcommand);
-      					break;
-				case 'r':
-					pthread_create(&pid, NULL, UpdatePlaylist, (void *)mpv);
-					break;
-				
+			if (digitalRead(VOLUME_UP) ==  LOW) {
+				printf("volume up\n");
+				mpv_command(mpv, volupcommand);
+				delay(200);
 			}
+                        else if (digitalRead(VOLUME_DOWN) ==  LOW) {
+				printf("volume down\n");
+				mpv_command(mpv, voldowncommand);
+				delay(200);
+                        }
+                        else if (digitalRead(SKIP) ==  LOW) {
+				printf("skip\n");
+				mpv_command(mpv, nextcommand);
+				delay(200);
+                        }
+                        else if (digitalRead(PREV) ==  LOW) {
+				printf("prev\n");
+				mpv_command(mpv, prevcommand);
+				delay(200);
+                        }
+                        else if (digitalRead(MODE) ==  LOW) {
+				printf("mode switch \n");
+				if (mode == 1) {mode=2;}
+				else if (mode == 2) {mode=3;}
+				else if (mode == 3) {mode=1;}
+				delay(200);
+                        }
+                        else if (digitalRead(RESET) ==  LOW) {
+				printf("reset\n");
+				pthread_create(&pid, NULL, UpdatePlaylist, NULL);
+				delay(200);
+                        }
 		}
 		else {
 			printf("hey from update");
@@ -151,6 +199,15 @@ void *ButtonLoop(void *handle) {
 	}
 }
 
+
+void *MPVEventLoop(void *handle) {
+    mpv_handle *mpv = (mpv_handle*)handle;
+    while (1) {
+        mpv_event *ev = mpv_wait_event(mpv, 0.1);
+        if (ev->event_id == MPV_EVENT_SHUTDOWN)
+            break;
+    }
+}
 
 
 int main(int argc,char *argv[]) {
@@ -171,32 +228,40 @@ int main(int argc,char *argv[]) {
 	mpv_handle *mpv = mpv_create();
 	
 	mpv_set_option_string(mpv, "vid", "no");
-    	mpv_set_option_string(mpv, "volume", "100");
+	mpv_set_option_string(mpv, "softvol", "yes");
 	mpv_set_option_string(mpv, "ao", "alsa");
 	mpv_set_option_string(mpv, "loop-playlist", "inf");
 	mpv_initialize(mpv);
+	pthread_t mpv_thread;
+	pthread_create(&mpv_thread, NULL, MPVEventLoop, mpv);
    	printf("hey \n", NULL);
 	pthread_t id;	
-	pthread_create(&id, NULL, ButtonLoop, (void*)mpv);
+	pthread_create(&id, NULL, ButtonLoop, mpv);
 	printf("hey before initial playlist \n");
-	UpdatePlaylist((void *)mpv);
-	const char *playlistcommand[] ={"loadfile", playlist, "replace", NULL};
-	mpv_command(mpv, playlistcommand);
+	system("mkdir Songs");
+	UpdatePlaylist(NULL);
 	printf("hey after initial playlist \n");
-		
-	
+
+
 	printf("hey2\n");
 	char speed[15];
 	spi_init();
-
+	double normalspeed = 1.00f;
 	for (;;) {
 		int adc_value = read_mcp3202_channel(0);
 		if (adc_value > 30) {
 			unstop(mpv);
 			printf("%d\n", adc_value);
 			printf("%f\n", speedarray[adc_value-100]);
-			set_speed(mpv, speedarray[adc_value-100], speed);
+			if (mode == 1) {
+				set_speed(mpv, speedarray[adc_value-100], speed);
+			}
+			set_speed(mpv, normalspeed, speed);			
 		} else  {
+			if (mode==3) {
+				unstop(mpv);
+				set_speed(mpv, normalspeed, speed);
+			}
 			usleep(.5 * 1000000);
 			if (adc_value < 30) {
 				stop(mpv);
