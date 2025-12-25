@@ -14,7 +14,7 @@
 #include <spawn.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
-//#include <wiringPi.h>
+#include <wiringPi.h>
 #include <signal.h>
 
 
@@ -144,7 +144,7 @@ int read_mcp3202_channel(uint8_t channel) {
 void *UpdatePlaylist(void *arg) {
 	while (atomic_flag_test_and_set(&downloading)) {
 	};
-	unlink(playlist)
+	unlink(playlist);
 	pid_t pid1;
 	pid_t pid2;
 	posix_spawn_file_actions_t fa;
@@ -157,11 +157,10 @@ void *UpdatePlaylist(void *arg) {
 	char *archive = "./Songs/archive.txt";
 	char ytdlpcommand[150];
 	char ytdlplistcommand[150];
-	printf("%s \n", yturl);
    	char *argv2[] = {
         	"yt-dlp",
         	"--flat-playlist",
-        	"--print", "\"%(title).mp3\"",
+        	"--print", "%(title)s.mp3",
         	(char *)yturl,
         	NULL
     	};
@@ -233,7 +232,7 @@ void *ButtonLoop(void *handle) {
 			updated = false;
 		}
 	}
-	return NULL
+	return NULL;
 }
 
 
@@ -244,7 +243,7 @@ void *MPVEventLoop(void *handle) {
         	if (ev->event_id == MPV_EVENT_SHUTDOWN)
             	break;
     	}
-	return NULL
+	return NULL;
 }
 
 
@@ -283,16 +282,19 @@ int main(int argc,char *argv[]) {
 	mkdir("./Songs", perms);
 	UpdatePlaylist(NULL);
 
-
+	struct timespec polltime;
+	struct timespec stoptime;
+	polltime.tv_sec = 0;
+	polltime.tv_nsec = 1000000L;
+	stoptime.tv_sec = 0;
+	stoptime.tv_nsec = 500000000L;
 	char speed[15];
 	spi_init();
 	double normalspeed = 1.00f;
 	while (running) {
 		int adc_value = read_mcp3202_channel(0);
-		if (adc_value > 30) {
+		if (adc_value > 20) {
 			unstop(mpv);
-			printf("%d\n", adc_value);
-			printf("%f\n", speedarray[adc_value-100]);
 			if (mode == 1) {
 				set_speed(mpv, speedarray[adc_value-100], speed);
 			} else {
@@ -303,12 +305,12 @@ int main(int argc,char *argv[]) {
 				unstop(mpv);
 				set_speed(mpv, normalspeed, speed);
 			}
-			usleep(.5 * 1000000);
+			nanosleep(&stoptime, NULL);
 			if (adc_value < 30) {
 				stop(mpv);
 			}
 		}
-		usleep(100*0000);
+		nanosleep(&polltime, NULL);
 
 
 	}	
