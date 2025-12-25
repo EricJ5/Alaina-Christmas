@@ -259,7 +259,7 @@ int main(int argc,char *argv[]) {
 	yturl = argv[1];
 	static double speedarray[3995];
 
-	double increment = (double) 3/3996;
+	double increment = (double) 3/4065;
 
 	double count = .35;
 	for (int i = 0;i < 3096; i++) {
@@ -293,10 +293,10 @@ int main(int argc,char *argv[]) {
 	double normalspeed = 1.00f;
 	while (running) {
 		int adc_value = read_mcp3202_channel(0);
-		if (adc_value > 20) {
+		if (adc_value > 30) {
 			unstop(mpv);
 			if (mode == 1) {
-				set_speed(mpv, speedarray[adc_value-100], speed);
+				set_speed(mpv, speedarray[adc_value-30], speed);
 			} else {
 				set_speed(mpv, normalspeed, speed);
 			}
