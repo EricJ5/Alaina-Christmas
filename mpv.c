@@ -30,7 +30,7 @@ extern char **environ;
 #define MODE 9
 #define RESET 7
 static volatile sig_atomic_t running = 1;
-
+volatile bool connected = true;
 static void handle_sigterm(int sig)
 {
     (void)sig;
@@ -115,7 +115,6 @@ void spi_init() {
 
 int read_mcp3202_channel(uint8_t channel) {
     uint8_t tx[] = {0x01, 0xA0, 0x00}; // Start bit, config byte (CH0 single-ended), dummy byte
-    
     if (channel == 1) {
         tx[1] = 0xE0; // Config byte for CH1 single-ended
     }
@@ -144,7 +143,6 @@ int read_mcp3202_channel(uint8_t channel) {
 void *UpdatePlaylist(void *arg) {
 	while (atomic_flag_test_and_set(&downloading)) {
 	};
-	unlink(playlist);
 	pid_t pid1;
 	pid_t pid2;
 	posix_spawn_file_actions_t fa;
@@ -153,10 +151,8 @@ void *UpdatePlaylist(void *arg) {
                   O_CREAT | O_WRONLY | O_TRUNC, 0644);
 	posix_spawn_file_actions_adddup2(&fa, fd, STDOUT_FILENO);
     	posix_spawn_file_actions_addclose(&fa, fd);
-	char *Songs = "./Songs";
+	char *Songs = "Songs";
 	char *archive = "./Songs/archive.txt";
-	char ytdlpcommand[150];
-	char ytdlplistcommand[150];
    	char *argv2[] = {
         	"yt-dlp",
         	"--flat-playlist",
@@ -166,6 +162,8 @@ void *UpdatePlaylist(void *arg) {
     	};
 	char *argv1[] = {
         	"yt-dlp",
+		"-o",
+		"Songs/%(title)s.%(ext)s",
         	"-x",
         	"--audio-format", "mp3",
         	"--download-archive", (char *)archive,
@@ -175,7 +173,12 @@ void *UpdatePlaylist(void *arg) {
 	posix_spawnp(&pid1, "yt-dlp", NULL, NULL, argv1, environ);
 	posix_spawnp(&pid2, "yt-dlp", &fa, NULL, argv2, environ);
 	posix_spawn_file_actions_destroy(&fa);
-	waitpid(pid1, NULL, 0);
+	int download = waitpid(pid1, NULL, 0);
+	if (download == -1) {
+		printf("check internet connection");		
+		return NULL;
+	}
+	unlink(playlist);
 	waitpid(pid2, NULL, 0);
     	atomic_flag_clear(&downloading);
 	updated = true;
@@ -279,7 +282,7 @@ int main(int argc,char *argv[]) {
 	pthread_t id;	
 	pthread_create(&id, NULL, ButtonLoop, mpv);
 	mode_t perms = S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH;
-	mkdir("./Songs", perms);
+	mkdir("Songs", perms);
 	UpdatePlaylist(NULL);
 
 	struct timespec polltime;
