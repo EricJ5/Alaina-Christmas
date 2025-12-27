@@ -31,6 +31,7 @@ extern char **environ;
 #define RESET 7
 static volatile sig_atomic_t running = 1;
 volatile bool connected = true;
+const char *playlistcommand[] ={"loadfile", "./Song/playlist.m3u", "replace", NULL};
 static void handle_sigterm(int sig)
 {
     (void)sig;
@@ -189,7 +190,6 @@ void *ButtonLoop(void *handle) {
 	mpv_handle *mpv = (mpv_handle*)handle;
 	const char *nextcommand[] ={"playlist-next", NULL};
 	const char *prevcommand[] ={"playlist-prev", NULL};
-	const char *playlistcommand[] ={"loadfile", playlist, "replace", NULL};
 	const char *volupcommand[] ={"add", "volume", "5", NULL};
 	const char *voldowncommand[] ={"add", "volume", "-5", NULL};
 	pthread_t pid;
@@ -279,11 +279,19 @@ int main(int argc,char *argv[]) {
 	mpv_initialize(mpv);
 	pthread_t mpv_thread;
 	pthread_create(&mpv_thread, NULL, MPVEventLoop, mpv);
-	pthread_t id;	
+
+
+	pthread_t button_thread;
 	pthread_create(&id, NULL, ButtonLoop, mpv);
+
+
 	mode_t perms = S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH;
 	mkdir("Songs", perms);
-	UpdatePlaylist(NULL);
+
+	mpv_command(playlistcommand)
+
+	pthread_t update_thread;
+	pthread_create(&update_thread, NULL, UpdatePlaylist, NULL);
 
 	struct timespec polltime;
 	struct timespec stoptime;
