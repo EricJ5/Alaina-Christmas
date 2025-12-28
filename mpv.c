@@ -31,7 +31,7 @@ extern char **environ;
 #define RESET 7
 static volatile sig_atomic_t running = 1;
 volatile bool connected = true;
-const char *playlistcommand[] ={"loadfile", "./Song/playlist.m3u", "replace", NULL};
+const char *playlistcommand[] ={"loadfile", "./Songs/playlist.m3u", "replace", NULL};
 static void handle_sigterm(int sig)
 {
     (void)sig;
@@ -146,12 +146,6 @@ void *UpdatePlaylist(void *arg) {
 	};
 	pid_t pid1;
 	pid_t pid2;
-	posix_spawn_file_actions_t fa;
-    	posix_spawn_file_actions_init(&fa);
-	int fd = open(playlist,
-                  O_CREAT | O_WRONLY | O_TRUNC, 0644);
-	posix_spawn_file_actions_adddup2(&fa, fd, STDOUT_FILENO);
-    	posix_spawn_file_actions_addclose(&fa, fd);
 	char *Songs = "Songs";
 	char *archive = "./Songs/archive.txt";
    	char *argv2[] = {
@@ -172,14 +166,20 @@ void *UpdatePlaylist(void *arg) {
        	 	NULL
    	};
 	posix_spawnp(&pid1, "yt-dlp", NULL, NULL, argv1, environ);
-	posix_spawnp(&pid2, "yt-dlp", &fa, NULL, argv2, environ);
-	posix_spawn_file_actions_destroy(&fa);
 	int download = waitpid(pid1, NULL, 0);
 	if (download == -1) {
 		printf("check internet connection");		
 		return NULL;
 	}
 	unlink(playlist);
+        posix_spawn_file_actions_t fa;
+        posix_spawn_file_actions_init(&fa);
+        int fd = open(playlist,
+                  O_CREAT | O_WRONLY | O_TRUNC, 0644);
+        posix_spawn_file_actions_adddup2(&fa, fd, STDOUT_FILENO);
+        posix_spawn_file_actions_addclose(&fa, fd);
+	posix_spawnp(&pid2, "yt-dlp", &fa, NULL, argv2, environ);
+	posix_spawn_file_actions_destroy(&fa);
 	waitpid(pid2, NULL, 0);
     	atomic_flag_clear(&downloading);
 	updated = true;
@@ -256,39 +256,40 @@ int main(int argc,char *argv[]) {
     	sa.sa_handler = handle_sigterm;
     	sigemptyset(&sa.sa_mask);
     	sa.sa_flags = 0;
-
+	printf("hello");
     	sigaction(SIGTERM, &sa, NULL);
     	sigaction(SIGINT,  &sa, NULL);
 	yturl = argv[1];
-	static double speedarray[3995];
+	static double speedarray[4095];
 
-	double increment = (double) 3/4065;
+	double increment = (double) 3/4095;
 
 	double count = .35;
-	for (int i = 0;i < 3096; i++) {
+	for (int i = 0;i < 3095; i++) {
 		speedarray[i] = count;
 		count += increment;
 	}
 	printf("%s", argv[1]);
 	mpv_handle *mpv = mpv_create();
 	
-	mpv_set_option_string(mpv, "vid", "no");
 	mpv_set_option_string(mpv, "softvol", "yes");
 	mpv_set_option_string(mpv, "ao", "alsa");
 	mpv_set_option_string(mpv, "loop-playlist", "inf");
+	mpv_set_option_string(mpv, "vid", "no");
 	mpv_initialize(mpv);
+	mode_t perms = S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH;
+	mkdir("Songs", perms);
 	pthread_t mpv_thread;
 	pthread_create(&mpv_thread, NULL, MPVEventLoop, mpv);
 
 
 	pthread_t button_thread;
-	pthread_create(&id, NULL, ButtonLoop, mpv);
+	pthread_create(&button_thread, NULL, ButtonLoop, mpv);
 
 
-	mode_t perms = S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH;
-	mkdir("Songs", perms);
+	
 
-	mpv_command(playlistcommand)
+	mpv_command(mpv, playlistcommand);
 
 	pthread_t update_thread;
 	pthread_create(&update_thread, NULL, UpdatePlaylist, NULL);
