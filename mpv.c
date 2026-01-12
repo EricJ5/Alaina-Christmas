@@ -167,7 +167,7 @@ void *UpdatePlaylist(void *arg) {
    	};
 	posix_spawnp(&pid1, "yt-dlp", NULL, NULL, argv1, environ);
 	int download = waitpid(pid1, NULL, 0);
-	if (download == -1) {
+	if (download != 0) {
 		printf("check internet connection");		
 		return NULL;
 	}
