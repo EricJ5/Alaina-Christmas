@@ -14,7 +14,6 @@
 #include <spawn.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
-#include <wiringPi.h>
 #include <signal.h>
 
 
@@ -36,23 +35,6 @@ static void handle_sigterm(int sig)
 {
     (void)sig;
     running = 0;
-}
-void gpioinit() {
-	wiringPiSetup();
-	
-	pinMode(VOLUME_UP, INPUT);
-	pinMode(VOLUME_DOWN, INPUT);
-	pinMode(SKIP, INPUT);
-	pinMode(PREV, INPUT);
-	pinMode(MODE, INPUT);
-	pinMode(RESET, INPUT);
-
-    	pullUpDnControl(VOLUME_UP, PUD_UP);
-	pullUpDnControl(VOLUME_DOWN, PUD_UP);
-	pullUpDnControl(SKIP, PUD_UP);
-	pullUpDnControl(PREV, PUD_UP);
-	pullUpDnControl(MODE, PUD_UP);
-	pullUpDnControl(RESET, PUD_UP);
 }
 void set_speed(mpv_handle *handle, double speedfloat, char *speed) {
         float speedf = speedfloat;
@@ -89,55 +71,10 @@ void unstop(mpv_handle *handle) {
 }
 
 
-#define SPI_DEVICE "/dev/spidev0.0"
 #define VREF_VOLTAGE 3.3  // The voltage connected to Vdd pin
 #define ADC_RESOLUTION 4095.0 // 12-bit ADC has 2^12 = 4096 steps (0 to 4095)
 char *yturl;
-int spi_fd;
-void spi_init() {
-    uint8_t mode = 0; // SPI Mode 0 or 3
-    uint8_t bits = 8;
-    uint32_t speed = 1000000; // 1 MHz clock speed
 
-    spi_fd = open(SPI_DEVICE, O_RDWR);
-    if (spi_fd < 0) {
-        perror("Error opening SPI device");
-        exit(1);
-    }
-
-     // Configure SPI
-    ioctl(spi_fd, SPI_IOC_WR_MODE, &mode);
-    ioctl(spi_fd, SPI_IOC_RD_MODE, &mode);
-    ioctl(spi_fd, SPI_IOC_WR_BITS_PER_WORD, &bits);
-    ioctl(spi_fd, SPI_IOC_RD_BITS_PER_WORD, &bits);
-    ioctl(spi_fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed);
-    ioctl(spi_fd, SPI_IOC_RD_MAX_SPEED_HZ, &speed);
-}
-
-int read_mcp3202_channel(uint8_t channel) {
-    uint8_t tx[] = {0x01, 0xA0, 0x00}; // Start bit, config byte (CH0 single-ended), dummy byte
-    if (channel == 1) {
-        tx[1] = 0xE0; // Config byte for CH1 single-ended
-    }
-    
-    uint8_t rx[sizeof(tx)] = {0};
-    struct spi_ioc_transfer tr = {
-        .tx_buf = (unsigned long)tx,
-        .rx_buf = (unsigned long)rx,
-        .len = sizeof(tx),
-        .speed_hz = 1000000,
-        .delay_usecs = 0,
-        .bits_per_word = 8,
-    };
-
-    ioctl(spi_fd, SPI_IOC_MESSAGE(1), &tr);
-
-    // The result is 12 bits, spanning the second and third bytes
-    // Mask the relevant bits: first 4 bits from rx[1] and all 8 bits from rx[2]
-    int adc_value = ((rx[1] & 0x0F) << 8) | rx[2];
-    
-    return adc_value;
-}
 
 
 
@@ -167,7 +104,7 @@ void *UpdatePlaylist(void *arg) {
    	};
 	posix_spawnp(&pid1, "yt-dlp", NULL, NULL, argv1, environ);
 	int download = waitpid(pid1, NULL, 0);
-	if (download == -1) {
+	if (download!=0) {
 		printf("check internet connection");		
 		return NULL;
 	}
@@ -193,40 +130,28 @@ void *ButtonLoop(void *handle) {
 	const char *volupcommand[] ={"add", "volume", "5", NULL};
 	const char *voldowncommand[] ={"add", "volume", "-5", NULL};
 	pthread_t pid;
-	gpioinit();
+	char key = getchar();
 	while (running) {
 		if (!updated) {
-			if (digitalRead(VOLUME_UP) ==  LOW) {
+			if (key == 'u') {
 				printf("volume up\n");
 				mpv_command(mpv, volupcommand);
-				delay(200);
 			}
-                        else if (digitalRead(VOLUME_DOWN) ==  LOW) {
+                        else if (key == 'd') {
 				printf("volume down\n");
 				mpv_command(mpv, voldowncommand);
-				delay(200);
                         }
-                        else if (digitalRead(SKIP) ==  LOW) {
+                        else if (key ==  's') {
 				printf("skip\n");
 				mpv_command(mpv, nextcommand);
-				delay(200);
                         }
-                        else if (digitalRead(PREV) ==  LOW) {
+                        else if (key == 'p') {
 				printf("prev\n");
 				mpv_command(mpv, prevcommand);
-				delay(200);
                         }
-                        else if (digitalRead(MODE) ==  LOW) {
-				printf("mode switch \n");
-				if (mode == 1) {mode=2;}
-				else if (mode == 2) {mode=3;}
-				else if (mode == 3) {mode=1;}
-				delay(200);
-                        }
-                        else if (digitalRead(RESET) ==  LOW) {
+                        else if (key == 'r') {
 				printf("reset\n");
 				pthread_create(&pid, NULL, UpdatePlaylist, NULL);
-				delay(200);
                         }
 		}
 		else {
@@ -301,10 +226,10 @@ int main(int argc,char *argv[]) {
 	stoptime.tv_sec = 0;
 	stoptime.tv_nsec = 500000000L;
 	char speed[15];
-	spi_init();
+	#spi_init();
 	double normalspeed = 1.00f;
 	while (running) {
-		int adc_value = read_mcp3202_channel(0);
+		#int adc_value = read_mcp3202_channel(0);
 		if (adc_value > 30) {
 			unstop(mpv);
 			if (mode == 1) {
