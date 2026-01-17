@@ -1,9 +1,8 @@
+#include <stdio.h>
 #define _POSIX_C_SOURCE 200809L
 #include <stdatomic.h>
 #include <syscall.h>
 #include <unistd.h>
-#include <stdbool.h>
-#include <stdio.h>
 #include <pthread.h>
 #include <linux/spi/spidev.h>
 #include <sys/ioctl.h>
@@ -16,7 +15,7 @@
 #include <sys/wait.h>
 #include <wiringPi.h>
 #include <signal.h>
-
+#include "utils.h"
 
 atomic_flag downloading = ATOMIC_FLAG_INIT;
 volatile bool updated = false;
@@ -144,8 +143,10 @@ int read_mcp3202_channel(uint8_t channel) {
 void *UpdatePlaylist(void *arg) {
 	while (atomic_flag_test_and_set(&downloading)) {
 	};
-	pid_t pid1;
-	pid_t pid2;
+	pid_t downloadPid;
+	pid_t playlistWritePid;
+	int downloadStatus;
+	int playlistWriteStatus;
 	char *Songs = "Songs";
 	char *archive = "./Songs/archive.txt";
    	char *argv2[] = {
@@ -165,22 +166,36 @@ void *UpdatePlaylist(void *arg) {
         	(char *)yturl,
        	 	NULL
    	};
-	posix_spawnp(&pid1, "yt-dlp", NULL, NULL, argv1, environ);
-	int download = waitpid(pid1, NULL, 0);
-	if (download != 0) {
-		printf("check internet connection");		
-		return NULL;
+	posix_spawnp(&downloadPid, "yt-dlp", NULL, NULL, argv1, environ);
+	waitpid(downloadPid, &downloadStatus, 0);
+
+	if (WIFEXITED(downloadStatus)) {
+		if (WEXITSTATUS(downloadStatus) != 0) {
+			printf("error when dowloading playlist, check internet connection");
+			return NULL;
+		
+		} else {printf("playlist downloaded");}
 	}
+
+
+
+
 	unlink(playlist);
         posix_spawn_file_actions_t fa;
-        posix_spawn_file_actions_init(&fa);
-        int fd = open(playlist,
-                  O_CREAT | O_WRONLY | O_TRUNC, 0644);
+        posix_spawn_file_actions_init(&fa); 
+	int fd = open(playlist, O_CREAT | O_WRONLY | O_TRUNC, 0644);
         posix_spawn_file_actions_adddup2(&fa, fd, STDOUT_FILENO);
         posix_spawn_file_actions_addclose(&fa, fd);
-	posix_spawnp(&pid2, "yt-dlp", &fa, NULL, argv2, environ);
+	posix_spawnp(&playlistWritePid, "yt-dlp", &fa, NULL, argv2, environ);
+	waitpid(playlistWritePid, &playlistWriteStatus, 0);
 	posix_spawn_file_actions_destroy(&fa);
-	waitpid(pid2, NULL, 0);
+	if (WIFEXITED(playlistWriteStatus)) {
+		if (WEXITSTATUS(playlistWriteStatus) != 0) {
+			printf("error when updating playlist file");
+			return NULL;
+		
+		} else {printf("playlist updated");}
+	}
     	atomic_flag_clear(&downloading);
 	updated = true;
 	return NULL;	
