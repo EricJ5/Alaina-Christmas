@@ -147,12 +147,14 @@ void *UpdatePlaylist(void *arg) {
 	pid_t playlistWritePid;
 	int downloadStatus;
 	int playlistWriteStatus;
-	char *Songs = "Songs";
+	char *Songs = "Songs";        
 	char *archive = "./Songs/archive.txt";
+        posix_spawn_file_actions_t playlistActions;
+
    	char *argv2[] = {
         	"yt-dlp",
         	"--flat-playlist",
-        	"--print", "%(title)s.mp3",
+        	"--print", "%(title)s.opus",
         	(char *)yturl,
         	NULL
     	};
@@ -161,7 +163,9 @@ void *UpdatePlaylist(void *arg) {
 		"-o",
 		"Songs/%(title)s.%(ext)s",
         	"-x",
-        	"--audio-format", "mp3",
+        	"--audio-format", "opus",
+		"-f",
+		"ba",
         	"--download-archive", (char *)archive,
         	(char *)yturl,
        	 	NULL
@@ -181,14 +185,17 @@ void *UpdatePlaylist(void *arg) {
 
 
 	unlink(playlist);
-        posix_spawn_file_actions_t fa;
-        posix_spawn_file_actions_init(&fa); 
-	int fd = open(playlist, O_CREAT | O_WRONLY | O_TRUNC, 0644);
-        posix_spawn_file_actions_adddup2(&fa, fd, STDOUT_FILENO);
-        posix_spawn_file_actions_addclose(&fa, fd);
-	posix_spawnp(&playlistWritePid, "yt-dlp", &fa, NULL, argv2, environ);
+	posix_spawn_file_actions_init(&playlistActions); 
+	int playlistFile = open(playlist, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+        posix_spawn_file_actions_adddup2(&playlistActions, playlistFile, STDOUT_FILENO);
+        posix_spawn_file_actions_addclose(&playlistActions, playlistFile);
+
+
+	posix_spawnp(&playlistWritePid, "yt-dlp", &playlistActions, NULL, argv2, environ);
 	waitpid(playlistWritePid, &playlistWriteStatus, 0);
-	posix_spawn_file_actions_destroy(&fa);
+
+
+	posix_spawn_file_actions_destroy(&playlistActions);
 	if (WIFEXITED(playlistWriteStatus)) {
 		if (WEXITSTATUS(playlistWriteStatus) != 0) {
 			printf("error when updating playlist file");
