@@ -55,7 +55,7 @@ void *button_loop(void *handle) {
                         }
 		}
 		else {
-			printf("hey from update");
+			printf("hey from update\n");
 			mpv_command(mpv, playlistCommand);
 			updated = false;
 		}

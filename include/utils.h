@@ -5,8 +5,8 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-bool compare_two_file(FILE *file1, FILE *file2);
-
+bool compare_two_files(char *file1, char *file2);
+void copy_two_files(char *file1, char *file2);
 
 #endif // UTILS_HEADER
 

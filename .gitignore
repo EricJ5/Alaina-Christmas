@@ -7,3 +7,5 @@ Songs/
 compile_commands.json
 *.txt
 *.m3u
+test_musicbox
+musicbox
