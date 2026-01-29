@@ -54,12 +54,11 @@ void *update_playlist(void *arg) {
    	};
 	posix_spawnp(&downloadPid, "yt-dlp", NULL, NULL, argv1, environ);
 	waitpid(downloadPid, &downloadStatus, 0);
-	printf("test print\n");
 	if (WIFEXITED(downloadStatus)) {
 		int status = WEXITSTATUS(downloadStatus);
 		if (status != 0 && status != 2 && status != 101) {
-			printf("%d \n", status);
-			printf("error when dowloading playlist, check internet connection\n");
+			printf("ytd-dlp exit code: %d \n", status);
+			perror("error: problem when dowloading playlist, check internet connection\n");
 		
 		} else {printf("playlist downloaded\n");}
 	}
@@ -78,8 +77,9 @@ void *update_playlist(void *arg) {
 	close(fd);
 	posix_spawn_file_actions_destroy(&fa);
 	if (WIFEXITED(playlistWriteStatus)) {
-		if (WEXITSTATUS(playlistWriteStatus) != 0) {
-			printf("error when updating playlist file\n");
+		int status = WEXITSTATUS(downloadStatus);
+		if (status != 0 && status != 2 && status != 101) {
+			perror("error: problem when updating playlist file\n");
     			atomic_flag_clear(&downloading);
 			return NULL;
 		} else {printf("playlist updated\n");}
