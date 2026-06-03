@@ -22,6 +22,7 @@ atomic_bool updated = false;
 
 
 
+
 void *update_playlist(void *arg) {
 	while (atomic_flag_test_and_set(&downloading)) {
 	};
@@ -94,7 +95,6 @@ void *update_playlist(void *arg) {
 	unlink(playlist);
 	copy_two_files(tmpPlaylist, playlist);
 	unlink(tmpPlaylist);
-	printf("got here\n");
 
     	atomic_flag_clear(&downloading);
 	updated = true;

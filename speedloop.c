@@ -8,6 +8,8 @@
 
 #include <time.h>
 
+_Atomic int minVoltage = 30;
+
 
 void speed_loop(mpv_handle *handle) {
 	struct timespec pollTime;
@@ -27,17 +29,17 @@ void speed_loop(mpv_handle *handle) {
 	static double speedArray[4095];
 	double count = .35;
 
-	for (int i = 0;i < 3095; i++) {
+	for (int i = 0;i < 4096; i++) {
 		speedArray[i] = count;
 		count += increment;
 	}
 
 	while (running) {
 		int adcValue = read_mcp3202_channel(0);
-		if (adcValue > 30) {
+		if (adcValue >= minVoltage) {
 			unstop(handle);
 			if (mode == 1) {
-				set_speed(handle, speedArray[adcValue-30], speed);
+				set_speed(handle, speedArray[adcValue-minVoltage], speed);
 			} else {
 				set_speed(handle, normalSpeed, speed);
 			}

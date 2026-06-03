@@ -3,8 +3,8 @@ CC = clang
 INCLUDEDIR = include
 CFLAGS = -I$(INCLUDEDIR)
 all: musicbox
-TESTLDFLAGS = -lmpv
-PRODLDFLAGS = -lmpv -lwiringPi
+TESTLDFLAGS = -lmpv -lm
+PRODLDFLAGS = -lmpv -lwiringPi -lm
 PRODSRC=$(wildcard *.c)
 NOTESTSRC= buttons.c speedloop.c gpio.c
 TESTSRC= $(wildcard $(TEST_DIR)/*.c) $(filter-out $(NOTESTSRC), $(PRODSRC)) 

@@ -3,6 +3,9 @@
 #include "playlist.h"
 #include "gpio.h"
 #include "sighandle.h"
+#include "mpvutils.h"
+#include "server.h"
+
 
 #include <mpv/client.h>
 #include <stdio.h>
@@ -24,11 +27,15 @@ void *button_loop(void *handle) {
 			if (digitalRead(VOLUME_UP) ==  LOW) {
 				printf("volume up\n");
 				mpv_command(mpv, volUpCommand);
+				double volume = get_volume(lmpv);
+				push_packet(pq, SET_VOLUME, sizeof(volume), &volume);
 				delay(200);
 			}
                         else if (digitalRead(VOLUME_DOWN) ==  LOW) {
 				printf("volume down\n");
 				mpv_command(mpv, volDownCommand);
+				double volume = get_volume(lmpv);
+				push_packet(pq, SET_VOLUME, sizeof(volume), &volume);
 				delay(200);
                         }
                         else if (digitalRead(SKIP) ==  LOW) {
@@ -55,7 +62,6 @@ void *button_loop(void *handle) {
                         }
 		}
 		else {
-			printf("hey from update\n");
 			mpv_command(mpv, playlistCommand);
 			updated = false;
 		}

@@ -3,17 +3,18 @@
 #include "playlist.h"
 #include "buttons.h"
 #include "speedloop.h"
-
+#include "server.h"
 
 #include <fcntl.h>
+#include <mpv/client.h>
 #include <spawn.h>
 #include <sys/stat.h>
 #include <stdio.h>
 #include <pthread.h>
-
+mpv_handle *mpv;
 char *ytUrl;
 int main(int argc,char *argv[]) {
-
+	
     	struct sigaction sa = {0};
     	sa.sa_handler = handle_sigterm;
     	sigemptyset(&sa.sa_mask);
@@ -24,13 +25,14 @@ int main(int argc,char *argv[]) {
 	ytUrl = argv[1];
 
 	printf("%s", argv[1]);
-	mpv_handle *mpv = mpv_create();
+	mpv = mpv_create();
 	
 	mpv_set_option_string(mpv, "softvol", "yes");
 	mpv_set_option_string(mpv, "ao", "alsa");
 	mpv_set_option_string(mpv, "loop-playlist", "inf");
 	mpv_set_option_string(mpv, "vid", "no");
 	mpv_initialize(mpv);
+	mpv_set_property_string(mpv, "volume-max", "100.0");
 	mode_t perms = S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH;
 	mkdir("Songs", perms);
 	pthread_t mpvThread;
@@ -48,7 +50,8 @@ int main(int argc,char *argv[]) {
 	pthread_t updateThread;
 	pthread_create(&updateThread, NULL, update_playlist, NULL);
 
-
+	pthread_t serverThread;
+	pthread_create(&serverThread, NULL, server_init, NULL);
 
 	speed_loop(mpv);
 

@@ -2,6 +2,8 @@
 
 #include "sighandle.h"
 #include "playlist.h"
+#include "server.h"
+#include "mpvutils.h"
 
 #include <mpv/client.h>
 #include <stdbool.h>
@@ -21,7 +23,7 @@ void *key_thread(void *arg) {
 }
 
 void *button_loop(void *handle) {
-	mpv_handle *mpv = (mpv_handle*)handle;
+	mpv_handle *lmpv = (mpv_handle*)handle;
 	const char *nextCommand[] ={"playlist-next", NULL};
 	const char *prevCommand[] ={"playlist-prev", NULL};
 	const char *volUpCommand[] ={"add", "volume", "5", NULL};
@@ -35,16 +37,20 @@ void *button_loop(void *handle) {
 			if (keyPress) {
 				if (key == 'u') {
 					printf("volume up\n");
-					mpv_command(mpv, volUpCommand);
+					mpv_command(lmpv, volUpCommand);
+					double volume = get_volume(lmpv);
+					push_packet(pq, SET_VOLUME, sizeof(volume), &volume);
 				} else if (key == 'd') {
 					printf("volume down\n");
-					mpv_command(mpv, volDownCommand);
+					mpv_command(lmpv, volDownCommand);
+					double volume = get_volume(lmpv);
+					push_packet(pq, SET_VOLUME, sizeof(volume), &volume);
 				} else if (key ==  's') {
 					printf("skip\n");
-					mpv_command(mpv, nextCommand);
+					mpv_command(lmpv, nextCommand);
 				} else if (key == 'p') {
 					printf("prev\n");
-					mpv_command(mpv, prevCommand);
+					mpv_command(lmpv, prevCommand);
 				} else if (key == 'r') {
 					printf("reset\n");
 					pthread_create(&playlistPid, NULL, update_playlist, NULL);
@@ -53,7 +59,7 @@ void *button_loop(void *handle) {
 			}
 		} else if (updated) {
 			printf("hey from update\n");
-			mpv_command(mpv, playlistCommand);
+			mpv_command(lmpv, playlistCommand);
 			updated = false;
 		}
 	}

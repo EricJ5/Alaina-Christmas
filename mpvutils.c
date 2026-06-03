@@ -5,6 +5,7 @@
 #include "sighandle.h"
 
 
+#include <mpv/client.h>
 #include <stdio.h>
 
 
@@ -49,7 +50,15 @@ void *mpv_event_loop(void *handle) {
        		mpv_event *ev = mpv_wait_event(mpv, 0.1);
         	if (ev->event_id == MPV_EVENT_SHUTDOWN)
             	break;
-    	}
+	}
 	return NULL;
+}
+void set_volume(mpv_handle *handle, double volume) {
+	mpv_set_property(handle, "volume", MPV_FORMAT_DOUBLE, &volume);
+}
+double get_volume(mpv_handle *handle) {
+	double vol;
+	mpv_get_property(handle, "volume", MPV_FORMAT_DOUBLE, &vol);
+	return vol;
 }
 

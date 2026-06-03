@@ -9,3 +9,43 @@ compile_commands.json
 *.m3u
 test_musicbox
 musicbox
+
+# Bun
+# Always commit bun.lockb to ensure reproducible installations
+node_modules/
+.bun/
+*.tsbuildinfo
+
+# Build Output
+dist/
+dist-ssr/
+build/
+coverage/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Environment Variables & Secrets
+.env
+.env.*
+!.env.example
+
+# IDE & Editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Operating System
+.DS_Store
+Thumbs.db
